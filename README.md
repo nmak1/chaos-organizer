@@ -1,5 +1,12 @@
 # Chaos Organizer 🤖
 
+[![Build Status](https://github.com/nmak1/chaos-organizer/actions/workflows/deploy.yml/badge.svg)](https://github.com/nmak1/chaos-organizer/actions)
+[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Live-brightgreen)](https://nmak1.github.io/chaos-organizer/)
+[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
+[![Code Size](https://img.shields.io/github/languages/code-size/nmak1/chaos-organizer)](https://github.com/nmak1/chaos-organizer)
+[![Last Commit](https://img.shields.io/github/last-commit/nmak1/chaos-organizer)](https://github.com/nmak1/chaos-organizer)
+[![Stars](https://img.shields.io/github/stars/nmak1/chaos-organizer)](https://github.com/nmak1/chaos-organizer)
+
 Бот-органайзер с функционалом, похожим на мессенджеры (Telegram, WhatsApp, Slack).
 
 ## Реализованные функции
