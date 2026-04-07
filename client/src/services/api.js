@@ -1,9 +1,15 @@
 import axios from 'axios';
 
 // Определяем URL в зависимости от окружения
-const API_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://your-heroku-app.herokuapp.com' 
-  : 'http://localhost:3000';
+const getApiUrl = () => {
+  if (process.env.NODE_ENV === 'production') {
+    // Замените на ваш реальный сервер (Heroku, Railway и т.д.)
+    return 'https://chaos-organizer-server.herokuapp.com';
+  }
+  return 'http://localhost:3000';
+};
+
+const API_URL = getApiUrl();
 
 const apiClient = axios.create({
   baseURL: API_URL,
@@ -12,15 +18,10 @@ const apiClient = axios.create({
 
 export const api = {
   async getMessages(limit = 10, offset = 0) {
-    try {
-      const response = await apiClient.get('/messages', {
-        params: { limit, offset }
-      });
-      return response.data;
-    } catch (error) {
-      console.error('API Error:', error);
-      throw error;
-    }
+    const response = await apiClient.get('/messages', {
+      params: { limit, offset }
+    });
+    return response.data;
   },
   
   async sendMessage(type, content, username) {
@@ -87,7 +88,7 @@ export const api = {
 export const ws = {
   connect() {
     const WS_URL = process.env.NODE_ENV === 'production'
-      ? 'wss://your-heroku-app.herokuapp.com'
+      ? 'wss://chaos-organizer-server.herokuapp.com'
       : 'ws://localhost:3000';
     return new WebSocket(WS_URL);
   }
