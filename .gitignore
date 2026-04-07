@@ -1,0 +1,129 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Build outputs
+dist/
+build/
+*.js.map
+*.css.map
+
+# Server uploads
+server/uploads/
+server/uploads/*
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# IDE and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+logs/
+*.log
+server/logs/
+client/logs/
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.cache
+.cache/
+
+# Coverage directory
+coverage/
+.nyc_output/
+
+# Misc
+*.pem
+*.key
+*.cert
+.sass-cache/
+.parcel-cache/
+
+# Webpack
+client/.webpack/
+client/dist/
+
+# Server specific
+server/uploads/*.jpg
+server/uploads/*.png
+server/uploads/*.gif
+server/uploads/*.mp4
+server/uploads/*.mp3
+server/uploads/*.webm
+server/uploads/*.pdf
+server/uploads/*.doc
+server/uploads/*.txt
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Certificate files
+*.pem
+*.crt
+*.key
+
+# Docker
+*.pid
+.dockerignore
+docker-compose.override.yml
+
+# Testing
+/test-results/
+/percy/
+.screenshots/
+
+# Config files with sensitive data
+config.local.js
+config.production.js
+*.secret.js
+
+# Temporary server files
+server/temp/
+server/tmp/
+
+# Client specific
+client/.cache/
+client/.temp/
+client/*.zip
+
+# Archive files
+*.zip
+*.tar
+*.gz
+*.rar
+*.7z
+
+# Debug files
+debug.log
+chrome-user-data/
