@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
-  Container,
   Box,
   AppBar,
   Toolbar,
@@ -14,7 +13,6 @@ import {
   ListItemText,
   TextField,
   InputAdornment,
-  Paper,
   Snackbar,
   Alert,
   Tooltip
@@ -22,44 +20,113 @@ import {
 import {
   Menu as MenuIcon,
   Chat as ChatIcon,
-  Star as StarIcon,
-  AttachFile as AttachFileIcon,
   Search as SearchIcon,
   Favorite as FavoriteIcon,
-  PushPin as PushPinIcon,
   Download as DownloadIcon,
   Image as ImageIcon,
   Audiotrack as AudioIcon,
   Videocam as VideoIcon,
   InsertDriveFile as FileIcon
 } from '@mui/icons-material';
-import MessageList from './MessageList';
-import MessageInput from './MessageInput';
-import PinnedMessage from './PinnedMessage';
-import { api, ws } from '../services/api';
-import './App.css';
+
+import { useMessages } from '../hooks/useMessages';
+import { useFavorites } from '../hooks/useFavorites';
+import { usePinnedMessage } from '../hooks/usePinnedMessage';
+import { useWebSocket } from '../hooks/useWebSocket';
+import { useNotification } from '../hooks/useNotification';
+import { api } from '../services/api';
+import { MessageList } from './MessageList';
+import { MessageInput } from './MessageInput';
+import { PinnedMessage } from './PinnedMessage';
 
 const DRAWER_WIDTH = 280;
 
-function App() {
-  const [messages, setMessages] = useState([]);
-  const [hasMore, setHasMore] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [pinnedMessage, setPinnedMessage] = useState(null);
-  const [favorites, setFavorites] = useState(new Set());
+const categories = [
+  { id: 'all', label: 'Все', icon: ChatIcon },
+  { id: 'favorites', label: 'Избранное', icon: FavoriteIcon },
+  { id: 'image', label: 'Изображения', icon: ImageIcon },
+  { id: 'video', label: 'Видео', icon: VideoIcon },
+  { id: 'audio', label: 'Аудио', icon: AudioIcon },
+  { id: 'file', label: 'Файлы', icon: FileIcon }
+];
+
+export const App = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [showSearch, setShowSearch] = useState(false);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
   const [activeCategory, setActiveCategory] = useState('all');
-  
-  const messagesEndRef = useRef(null);
-  const wsRef = useRef(null);
-  const loadMoreRef = useRef(null);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
 
-  // Экспорт истории чата
-  const exportChat = () => {
+  const { messages, hasMore, loading, loadMoreRef, loadMessages, addMessage, deleteMessage } = useMessages();
+  const { favorites, toggleFavorite } = useFavorites();
+  const { pinnedMessage, pinMessage } = usePinnedMessage();
+  const { showNotification } = useNotification();
+
+  const showSnackbar = useCallback((message, severity) => {
+    setSnackbar({ open: true, message, severity });
+  }, []);
+
+  const handleWebSocketMessage = useCallback((data) => {
+    switch (data.type) {
+      case 'new_message':
+        addMessage(data.message);
+        if (data.message.isBot && data.message.content.includes('НАПОМИНАНИЕ')) {
+          showNotification('Напоминание', data.message.content);
+        }
+        break;
+      case 'pin_updated':
+        // handled by usePinnedMessage
+        break;
+      case 'favorites_updated':
+        // handled by useFavorites
+        break;
+      case 'message_deleted':
+        deleteMessage(data.messageId);
+        break;
+    }
+  }, [addMessage, deleteMessage, showNotification]);
+
+  const { sendMessage: wsSend } = useWebSocket(handleWebSocketMessage);
+
+  const sendMessage = useCallback(async (type, content, file = null) => {
+    try {
+      if (file) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('username', 'User');
+        await api.uploadFile(formData);
+        showSnackbar('Файл отправлен', 'success');
+      } else if (content.trim().startsWith('/')) {
+        wsSend({ type: 'command', command: content });
+        showSnackbar('Команда отправлена боту', 'info');
+      } else {
+        await api.sendMessage(type, content, 'User');
+        showSnackbar('Сообщение отправлено', 'success');
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      showSnackbar('Ошибка отправки', 'error');
+    }
+  }, [wsSend, showSnackbar]);
+
+  const handleSearch = useCallback(async () => {
+    if (!searchQuery.trim()) {
+      setShowSearch(false);
+      return;
+    }
+    
+    try {
+      const results = await api.searchMessages(searchQuery);
+      setSearchResults(results);
+      setShowSearch(true);
+    } catch (error) {
+      console.error('Error searching:', error);
+      showSnackbar('Ошибка поиска', 'error');
+    }
+  }, [searchQuery, showSnackbar]);
+
+  const exportChat = useCallback(() => {
     const exportData = {
       exportedAt: new Date().toISOString(),
       totalMessages: messages.length,
@@ -70,8 +137,7 @@ function App() {
         username: m.username,
         timestamp: m.timestamp,
         date: new Date(m.timestamp).toLocaleString(),
-        ...(m.filename && { filename: m.filename }),
-        ...(m.filesize && { filesize: m.filesize })
+        ...(m.filename && { filename: m.filename })
       }))
     };
     
@@ -87,263 +153,30 @@ function App() {
     URL.revokeObjectURL(url);
     
     showSnackbar('История чата экспортирована', 'success');
-  };
+  }, [messages, showSnackbar]);
 
-  // Загрузка сообщений
-  const loadMessages = useCallback(async (offset = 0) => {
-    if (loading) return;
-    setLoading(true);
-    
-    try {
-      const response = await api.getMessages(10, offset);
-      
-      if (offset === 0) {
-        setMessages(response.messages);
-      } else {
-        setMessages(prev => [...response.messages, ...prev]);
-      }
-      
-      setHasMore(response.hasMore);
-    } catch (error) {
-      console.error('Error loading messages:', error);
-      showSnackbar('Ошибка загрузки сообщений', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [loading]);
-
-  // Загрузка закрепленного сообщения
-  const loadPinned = useCallback(async () => {
-    try {
-      const pinned = await api.getPinned();
-      setPinnedMessage(pinned);
-    } catch (error) {
-      console.error('Error loading pinned:', error);
-    }
-  }, []);
-
-  // Загрузка избранного
-  const loadFavorites = useCallback(async () => {
-    try {
-      const favs = await api.getFavorites();
-      setFavorites(new Set(favs.map(f => f.id)));
-    } catch (error) {
-      console.error('Error loading favorites:', error);
-    }
-  }, []);
-
-  // Отправка сообщения
-  const sendMessage = async (type, content, file = null) => {
-    try {
-      if (file) {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('username', 'User');
-        await api.uploadFile(formData);
-        showSnackbar('Файл отправлен', 'success');
-      } else {
-        if (content.trim().startsWith('/')) {
-          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({
-              type: 'command',
-              command: content
-            }));
-            showSnackbar('Команда отправлена боту', 'info');
-          } else {
-            await api.sendMessage(type, content, 'User');
-            showSnackbar('Сообщение отправлено', 'success');
-          }
-        } else {
-          await api.sendMessage(type, content, 'User');
-          showSnackbar('Сообщение отправлено', 'success');
-        }
-      }
-      scrollToBottom();
-    } catch (error) {
-      console.error('Error sending message:', error);
-      showSnackbar('Ошибка отправки', 'error');
-    }
-  };
-
-  // Закрепление сообщения
-  const handlePinMessage = async (message) => {
-    try {
-      if (pinnedMessage && pinnedMessage.id === message.id) {
-        await api.unpinMessage();
-        setPinnedMessage(null);
-        showSnackbar('Сообщение откреплено', 'info');
-      } else {
-        await api.pinMessage(message);
-        setPinnedMessage(message);
-        showSnackbar('Сообщение закреплено', 'success');
-      }
-    } catch (error) {
-      console.error('Error pinning message:', error);
-      showSnackbar('Ошибка закрепления сообщения', 'error');
-    }
-  };
-
-  // Добавление в избранное
-  const handleFavorite = async (messageId) => {
-    try {
-      const result = await api.toggleFavorite(messageId);
-      
-      setFavorites(prev => {
-        const newSet = new Set(prev);
-        if (result.favorited) {
-          newSet.add(messageId);
-        } else {
-          newSet.delete(messageId);
-        }
-        return newSet;
-      });
-      
-      showSnackbar(result.favorited ? 'Добавлено в избранное' : 'Удалено из избранного', 'success');
-    } catch (error) {
-      console.error('Error toggling favorite:', error);
-    }
-  };
-
-  // Поиск
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
-      setShowSearch(false);
-      return;
-    }
-    
-    try {
-      const results = await api.searchMessages(searchQuery);
-      setSearchResults(results);
-      setShowSearch(true);
-    } catch (error) {
-      console.error('Error searching:', error);
-      showSnackbar('Ошибка поиска', 'error');
-    }
-  };
-
-  // Скачивание файла
-  const handleDownload = async (filename) => {
-    try {
-      const blob = await api.downloadFile(filename);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      showSnackbar('Файл скачан', 'success');
-    } catch (error) {
-      console.error('Error downloading file:', error);
-      showSnackbar('Ошибка скачивания файла', 'error');
-    }
-  };
-
-  // Фильтрация по категориям
-  const getFilteredMessages = () => {
-    let filtered = showSearch ? searchResults : messages;
-    
+  const getFilteredMessages = useCallback(() => {
+    if (showSearch) return searchResults;
     if (activeCategory === 'favorites') {
-      filtered = filtered.filter(m => favorites.has(m.id));
-    } else if (activeCategory !== 'all') {
-      filtered = filtered.filter(m => m.type === activeCategory);
+      return messages.filter(m => favorites.has(m.id));
     }
-    
-    return filtered;
-  };
+    if (activeCategory !== 'all') {
+      return messages.filter(m => m.type === activeCategory);
+    }
+    return messages;
+  }, [showSearch, searchResults, activeCategory, messages, favorites]);
 
-  // WebSocket обработка
-  useEffect(() => {
-    wsRef.current = ws.connect();
-    
-    wsRef.current.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      
-      switch (data.type) {
-        case 'new_message':
-          setMessages(prev => [...prev, data.message]);
-          scrollToBottom();
-          break;
-        case 'pin_updated':
-          setPinnedMessage(data.message);
-          break;
-        case 'favorites_updated':
-          setFavorites(prev => {
-            const newSet = new Set(prev);
-            if (data.favorited) {
-              newSet.add(data.messageId);
-            } else {
-              newSet.delete(data.messageId);
-            }
-            return newSet;
-          });
-          break;
-        case 'message_deleted':
-          setMessages(prev => prev.filter(m => m.id !== data.messageId));
-          break;
-      }
-    };
-    
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-    };
-  }, []);
-
-  // Инициализация
   useEffect(() => {
     loadMessages(0);
-    loadPinned();
-    loadFavorites();
-  }, [loadMessages, loadPinned, loadFavorites]);
+  }, [loadMessages]);
 
-  // Бесконечная прокрутка
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loading) {
-          loadMessages(messages.length);
-        }
-      },
-      { threshold: 0.1 }
-    );
-    
-    if (loadMoreRef.current) {
-      observer.observe(loadMoreRef.current);
-    }
-    
-    return () => observer.disconnect();
-  }, [hasMore, loading, messages.length, loadMessages]);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const showSnackbar = (message, severity) => {
-    setSnackbar({ open: true, message, severity });
-  };
-
-  const categories = [
-    { id: 'all', label: 'Все', icon: <ChatIcon /> },
-    { id: 'favorites', label: 'Избранное', icon: <FavoriteIcon /> },
-    { id: 'image', label: 'Изображения', icon: <ImageIcon /> },
-    { id: 'video', label: 'Видео', icon: <VideoIcon /> },
-    { id: 'audio', label: 'Аудио', icon: <AudioIcon /> },
-    { id: 'file', label: 'Файлы', icon: <FileIcon /> }
-  ];
+  const filteredMessages = getFilteredMessages();
 
   return (
     <Box sx={{ display: 'flex', height: '100vh' }}>
       <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
         <Toolbar>
-          <IconButton
-            color="inherit"
-            edge="start"
-            onClick={() => setDrawerOpen(true)}
-            sx={{ mr: 2 }}
-          >
+          <IconButton color="inherit" edge="start" onClick={() => setDrawerOpen(true)} sx={{ mr: 2 }}>
             <MenuIcon />
           </IconButton>
           
@@ -351,7 +184,6 @@ function App() {
             Chaos Organizer 🤖
           </Typography>
           
-          {/* ПОЛЕ ПОИСКА */}
           <TextField
             size="small"
             placeholder="Поиск..."
@@ -370,7 +202,6 @@ function App() {
             }}
           />
           
-          {/* КНОПКА ЭКСПОРТА - ДОБАВЛЕНА ЗДЕСЬ, ПОСЛЕ ПОЛЯ ПОИСКА */}
           <Tooltip title="Экспорт истории">
             <IconButton color="inherit" onClick={exportChat}>
               <DownloadIcon />
@@ -379,40 +210,31 @@ function App() {
         </Toolbar>
       </AppBar>
       
-      <Drawer
-        anchor="left"
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        sx={{
-          width: DRAWER_WIDTH,
-          flexShrink: 0,
-          '& .MuiDrawer-paper': {
-            width: DRAWER_WIDTH,
-            boxSizing: 'border-box',
-          },
-        }}
-      >
+      <Drawer anchor="left" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
         <Toolbar />
-        <Box sx={{ overflow: 'auto' }}>
+        <Box sx={{ width: DRAWER_WIDTH, overflow: 'auto' }}>
           <List>
-            {categories.map((category) => (
-              <ListItem
-                button
-                key={category.id}
-                selected={activeCategory === category.id}
-                onClick={() => {
-                  setActiveCategory(category.id);
-                  setShowSearch(false);
-                  setDrawerOpen(false);
-                }}
-              >
-                <ListItemIcon>{category.icon}</ListItemIcon>
-                <ListItemText primary={category.label} />
-                {category.id === 'favorites' && favorites.size > 0 && (
-                  <Badge badgeContent={favorites.size} color="primary" />
-                )}
-              </ListItem>
-            ))}
+            {categories.map((category) => {
+              const Icon = category.icon;
+              return (
+                <ListItem
+                  button
+                  key={category.id}
+                  selected={activeCategory === category.id}
+                  onClick={() => {
+                    setActiveCategory(category.id);
+                    setShowSearch(false);
+                    setDrawerOpen(false);
+                  }}
+                >
+                  <ListItemIcon><Icon /></ListItemIcon>
+                  <ListItemText primary={category.label} />
+                  {category.id === 'favorites' && favorites.size > 0 && (
+                    <Badge badgeContent={favorites.size} color="primary" />
+                  )}
+                </ListItem>
+              );
+            })}
           </List>
         </Box>
       </Drawer>
@@ -421,21 +243,18 @@ function App() {
         <Toolbar />
         
         {pinnedMessage && (
-          <PinnedMessage
-            message={pinnedMessage}
-            onUnpin={() => handlePinMessage(pinnedMessage)}
-          />
+          <PinnedMessage message={pinnedMessage} onUnpin={() => pinMessage(pinnedMessage)} />
         )}
         
         <MessageList
-          messages={getFilteredMessages()}
-          favorites={favorites}
-          onPin={handlePinMessage}
-          onFavorite={handleFavorite}
-          onDownload={handleDownload}
-          pinnedMessageId={pinnedMessage?.id}
+          messages={filteredMessages}
+          hasMore={hasMore}
+          loading={loading}
           loadMoreRef={loadMoreRef}
-          messagesEndRef={messagesEndRef}
+          favorites={favorites}
+          pinnedMessageId={pinnedMessage?.id}
+          onPin={pinMessage}
+          onFavorite={toggleFavorite}
         />
         
         <MessageInput onSend={sendMessage} />
@@ -453,6 +272,4 @@ function App() {
       </Snackbar>
     </Box>
   );
-}
-
-export default App;
+};
