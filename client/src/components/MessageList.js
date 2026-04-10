@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { Box, Typography, Paper, IconButton, Menu, MenuItem, CircularProgress } from '@mui/material';
 import {
   PushPin as PushPinIcon,
@@ -9,7 +9,7 @@ import {
 } from '@mui/icons-material';
 import { MessageRenderer } from './MessageRenderer';
 
-const MessageItem = ({ message, isPinned, isFavorite, onPin, onFavorite }) => {
+const MessageItem = memo(({ message, isPinned, isFavorite, onPin, onFavorite }) => {
   const [anchorEl, setAnchorEl] = useState(null);
 
   const handleMenuOpen = (event) => setAnchorEl(event.currentTarget);
@@ -52,9 +52,9 @@ const MessageItem = ({ message, isPinned, isFavorite, onPin, onFavorite }) => {
       </Menu>
     </Box>
   );
-};
+});
 
-export const MessageList = ({ messages, hasMore, loading, loadMoreRef, favorites, pinnedMessageId, onPin, onFavorite }) => {
+export const MessageList = memo(({ messages, hasMore, loading, loadMoreRef, favorites, pinnedMessageId, onPin, onFavorite }) => {
   if (messages.length === 0) {
     return (
       <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -82,4 +82,4 @@ export const MessageList = ({ messages, hasMore, loading, loadMoreRef, favorites
       ))}
     </Box>
   );
-};
+});

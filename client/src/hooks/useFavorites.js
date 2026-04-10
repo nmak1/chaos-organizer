@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { api } from '../services/api';
 
 export const useFavorites = () => {
@@ -32,9 +32,5 @@ export const useFavorites = () => {
     }
   }, []);
 
-  useEffect(() => {
-    loadFavorites();
-  }, [loadFavorites]);
-
-  return { favorites, toggleFavorite };
+  return { favorites, loadFavorites, toggleFavorite };
 };

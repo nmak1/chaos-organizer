@@ -31,7 +31,7 @@ export const MessageInput = ({ onSend }) => {
   const handleFileSelect = useCallback((e) => {
     const file = e.target.files[0];
     if (file) onSend('file', null, file);
-    e.target.value = '';
+    if (e.target) e.target.value = '';
   }, [onSend]);
 
   const handleDragOver = useCallback((e) => {
@@ -67,9 +67,11 @@ export const MessageInput = ({ onSend }) => {
       mediaRecorder.start();
       setIsRecording(true);
       
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         if (mediaRecorder.state === 'recording') stopRecording();
       }, 30000);
+      
+      return () => clearTimeout(timeoutId);
     } catch (error) {
       console.error('Error accessing microphone:', error);
       alert('Не удалось получить доступ к микрофону');

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { api } from '../services/api';
 
 export const usePinnedMessage = () => {
@@ -30,9 +30,5 @@ export const usePinnedMessage = () => {
     }
   }, [pinnedMessage]);
 
-  useEffect(() => {
-    loadPinned();
-  }, [loadPinned]);
-
-  return { pinnedMessage, pinMessage };
+  return { pinnedMessage, loadPinned, pinMessage };
 };

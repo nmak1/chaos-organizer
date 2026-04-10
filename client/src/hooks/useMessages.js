@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { api } from '../services/api';
 
 export const useMessages = () => {
@@ -14,23 +14,30 @@ export const useMessages = () => {
     try {
       const response = await api.getMessages(10, offset);
       
-      if (offset === 0) {
-        setMessages(response.messages);
-      } else {
-        setMessages(prev => [...response.messages, ...prev]);
-      }
+      setMessages(prev => {
+        if (offset === 0) {
+          return response.messages;
+        } else {
+          // Избегаем дублирования
+          const newMessages = [...response.messages, ...prev];
+          return newMessages;
+        }
+      });
       
       setHasMore(response.hasMore);
     } catch (error) {
       console.error('Error loading messages:', error);
-      throw error;
     } finally {
       setLoading(false);
     }
   }, [loading]);
 
   const addMessage = useCallback((message) => {
-    setMessages(prev => [...prev, message]);
+    setMessages(prev => {
+      // Проверяем, нет ли уже такого сообщения
+      if (prev.some(m => m.id === message.id)) return prev;
+      return [...prev, message];
+    });
   }, []);
 
   const deleteMessage = useCallback((messageId) => {

@@ -4,6 +4,12 @@ const WS_URL = 'ws://localhost:3000';
 
 export const useWebSocket = (onMessage) => {
   const wsRef = useRef(null);
+  const onMessageRef = useRef(onMessage);
+
+  // Обновляем ref при изменении onMessage
+  useEffect(() => {
+    onMessageRef.current = onMessage;
+  }, [onMessage]);
 
   const sendMessage = useCallback((data) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -20,7 +26,7 @@ export const useWebSocket = (onMessage) => {
     
     wsRef.current.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      onMessage?.(data);
+      onMessageRef.current?.(data);
     };
     
     wsRef.current.onerror = (error) => {
@@ -32,7 +38,7 @@ export const useWebSocket = (onMessage) => {
         wsRef.current.close();
       }
     };
-  }, [onMessage]);
+  }, []); // Пустой массив зависимостей - подключаемся только один раз
 
   return { sendMessage };
 };

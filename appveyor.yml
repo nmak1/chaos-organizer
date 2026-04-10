@@ -1,0 +1,51 @@
+# Версия образа Windows
+image: Visual Studio 2019
+
+# Ветки для сборки
+branches:
+  only:
+    - main
+    - master
+
+# Отключаем MSBuild
+build: off
+
+# Установка Node.js
+environment:
+  nodejs_version: "18"
+
+install:
+  - ps: Install-Product node $env:nodejs_version
+  - npm --version
+  - node --version
+  
+  # Установка зависимостей для клиента
+  - cd client
+  - npm install
+  - cd ..
+  
+  # Установка зависимостей для сервера
+  - cd server
+  - npm install
+  - cd ..
+
+# Сборка
+build_script:
+  - echo Building Chaos Organizer...
+  - cd client
+  - npm run build
+  - cd ..
+
+# Тестирование
+test_script:
+  - echo No tests yet
+
+# Артефакты
+artifacts:
+  - path: client/dist
+    name: chaos-organizer-client
+
+# Кэширование node_modules для ускорения сборки
+cache:
+  - client/node_modules -> client/package.json
+  - server/node_modules -> server/package.json

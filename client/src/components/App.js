@@ -59,8 +59,8 @@ export const App = () => {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
 
   const { messages, hasMore, loading, loadMoreRef, loadMessages, addMessage, deleteMessage } = useMessages();
-  const { favorites, toggleFavorite } = useFavorites();
-  const { pinnedMessage, pinMessage } = usePinnedMessage();
+  const { favorites, loadFavorites, toggleFavorite } = useFavorites();
+  const { pinnedMessage, loadPinned, pinMessage } = usePinnedMessage();
   const { showNotification } = useNotification();
 
   const showSnackbar = useCallback((message, severity) => {
@@ -75,19 +75,23 @@ export const App = () => {
           showNotification('Напоминание', data.message.content);
         }
         break;
-      case 'pin_updated':
-        // handled by usePinnedMessage
-        break;
-      case 'favorites_updated':
-        // handled by useFavorites
-        break;
       case 'message_deleted':
         deleteMessage(data.messageId);
+        break;
+      default:
         break;
     }
   }, [addMessage, deleteMessage, showNotification]);
 
   const { sendMessage: wsSend } = useWebSocket(handleWebSocketMessage);
+
+  // Загрузка начальных данных - только один раз при монтировании
+  useEffect(() => {
+    loadMessages(0);
+    loadPinned();
+    loadFavorites();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Пустой массив - только при монтировании
 
   const sendMessage = useCallback(async (type, content, file = null) => {
     try {
@@ -165,10 +169,6 @@ export const App = () => {
     }
     return messages;
   }, [showSearch, searchResults, activeCategory, messages, favorites]);
-
-  useEffect(() => {
-    loadMessages(0);
-  }, [loadMessages]);
 
   const filteredMessages = getFilteredMessages();
 
